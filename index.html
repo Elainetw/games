@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>五子棋 · 禪境</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@300;400;700&display=swap');
+
+:root {
+  --board-wood: #c8a96e;
+  --board-frame-light: #c8a040;
+  --board-frame-dark: #7a5c18;
+  --ink: #1a1208;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  min-height: 100vh;
+  background-color: #1a1208;
+  font-family: 'Noto Serif TC', 'Noto Sans TC', serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 16px 8px 40px;
+  overflow-x: hidden;
+  position: relative;
+}
+
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background:
+    radial-gradient(ellipse 120% 60% at 50% 100%, #3d2e18 0%, transparent 70%),
+    radial-gradient(ellipse 80% 40% at 20% 80%, #1a1208 0%, transparent 60%),
+    linear-gradient(180deg, #0a0906 0%, #1c1610 30%, #2c2416 60%, #1a1208 100%);
+  z-index: 0;
+}
+
+body::after {
+  content: '';
+  position: fixed; bottom: 0; left: 0; right: 0; height: 45vh;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 400'%3E%3Cpath fill='%23080805' fill-opacity='0.7' d='M0,400 L0,280 Q100,200 200,250 Q300,300 400,180 Q500,60 600,120 Q700,180 800,100 Q900,20 1000,80 Q1100,140 1200,200 Q1300,260 1440,220 L1440,400 Z'/%3E%3Cpath fill='%230d0d08' fill-opacity='0.5' d='M0,400 L0,320 Q120,260 240,300 Q360,340 480,250 Q600,160 720,200 Q840,240 960,180 Q1080,120 1200,170 Q1320,220 1440,260 L1440,400 Z'/%3E%3C/svg%3E") no-repeat bottom center / cover;
+  z-index: 0;
+}
+
+.ink-particle {
+  position: fixed; border-radius: 50%; background: rgba(255,255,255,0.03);
+  animation: floatUp linear infinite; z-index: 0; pointer-events: none;
+}
+@keyframes floatUp {
+  0%   { transform: translateY(100vh) rotate(0deg); opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 0.4; }
+  100% { transform: translateY(-15vh) rotate(360deg); opacity: 0; }
+}
+
+/* ── Page Layout ── */
+.page {
+  position: relative; z-index: 1;
+  width: 100%; max-width: 780px;
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+}
+
+/* ── Title ── */
+.title-area { text-align: center; padding-top: 8px; }
+.title-sub {
+  font-size: clamp(10px,1.8vw,12px); letter-spacing: 0.5em;
+  color: rgba(197,168,110,0.55); display: block; margin-bottom: 4px;
+}
+.title-main {
+  font-size: clamp(28px,6vw,48px); font-weight: 700;
+  color: var(--board-wood); letter-spacing: 0.15em;
+  text-shadow: 0 0 40px rgba(200,169,110,0.3), 0 2px 4px rgba(0,0,0,0.8);
+}
+.title-rule {
+  display: flex; align-items: center; justify-content: center;
+  gap: 10px; margin-top: 8px;
+  color: rgba(197,168,110,0.35); font-size: 11px; letter-spacing: 0.3em;
+}
+.title-rule::before,.title-rule::after {
+  content:''; width:50px; height:1px;
+  background: linear-gradient(90deg,transparent,rgba(197,168,110,0.35),transparent);
+}
+
+/* ── Mode / Level Panel ── */
+.panel {
+  background: rgba(8,7,4,0.75);
+  border: 1px solid rgba(197,168,110,0.18);
+  border-radius: 4px; padding: 14px 22px;
+  backdrop-filter: blur(10px);
+  width: 100%; max-width: 580px;
+  display: flex; flex-direction: column; gap: 10px; align-items: center;
+}
+.panel-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; justify-content: center; }
+.panel-label { font-size: 10px; letter-spacing: 0.4em; color: rgba(197,168,110,0.4); white-space: nowrap; }
+
+.mode-btns, .level-btns { display: flex; gap: 6px; }
+.mbtn {
+  font-family: inherit; font-size: 12px; letter-spacing: 0.08em;
+  color: rgba(197,168,110,0.45); background: rgba(8,7,4,0.5);
+  border: 1px solid rgba(197,168,110,0.15); border-radius: 3px;
+  padding: 5px 14px; cursor: pointer; transition: all 0.2s;
+}
+.mbtn:hover, .mbtn.active {
+  color: var(--board-wood); border-color: rgba(197,168,110,0.5);
+  background: rgba(197,168,110,0.1);
+}
+
+/* Level pips */
+.level-pips { display: flex; gap: 5px; }
+.lpip {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  cursor: pointer; padding: 4px 7px; border-radius: 3px;
+  border: 1px solid transparent; transition: all 0.2s;
+}
+.lpip:hover, .lpip.active { border-color: rgba(197,168,110,0.3); background: rgba(197,168,110,0.07); }
+.lpip-dots { display: flex; gap: 2px; }
+.lpip-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: rgba(197,168,110,0.22); transition: background 0.2s;
+}
+.lpip:hover .lpip-dot, .lpip.active .lpip-dot { background: var(--board-wood); }
+.lpip-name { font-size: 9px; letter-spacing: 0.15em; color: rgba(197,168,110,0.38); transition: color 0.2s; }
+.lpip:hover .lpip-name, .lpip.active .lpip-name { color: var(--board-wood); }
+
+/* Thinking bar */
+.thinking-bar {
+  font-size: 11px; letter-spacing: 0.2em; color: rgba(197,168,110,0.5);
+  display: flex; align-items: center; gap: 7px; min-height: 16px;
+  transition: opacity 0.3s;
+}
+.tdots span { display:inline-block; animation: blink 1.1s infinite; }
+.tdots span:nth-child(2){ animation-delay:.18s; }
+.tdots span:nth-child(3){ animation-delay:.36s; }
+@keyframes blink { 0%,80%,100%{opacity:.15} 40%{opacity:1} }
+
+/* ── Score & Status ── */
+.info-row {
+  display: flex; align-items: center; gap: 20px;
+  background: rgba(8,7,4,0.7); border: 1px solid rgba(197,168,110,0.18);
+  border-radius: 4px; padding: 10px 24px;
+  backdrop-filter: blur(8px);
+}
+.player-block { display: flex; align-items: center; gap: 10px; }
+.stone-ico {
+  width: 26px; height: 26px; border-radius: 50%;
+  flex-shrink: 0; transition: transform 0.3s;
+}
+.stone-ico.black {
+  background: radial-gradient(circle at 35% 32%, #5a4a35, #1a1208 55%, #0a0804);
+  box-shadow: inset -2px -2px 4px rgba(0,0,0,0.6), inset 1px 1px 3px rgba(255,255,255,0.1),
+              0 3px 8px rgba(0,0,0,0.6);
+}
+.stone-ico.white {
+  background: radial-gradient(circle at 35% 32%, #ffffff, #e8dfc8 50%, #c8b88a);
+  box-shadow: inset -2px -2px 5px rgba(0,0,0,0.12), inset 1px 1px 4px rgba(255,255,255,0.9),
+              0 3px 8px rgba(0,0,0,0.5);
+}
+.stone-ico.glow { transform: scale(1.12); }
+.player-name { font-size: 13px; color: rgba(197,168,110,0.8); letter-spacing: 0.08em; }
+.player-score { font-size: 20px; font-weight: 700; color: var(--board-wood); min-width: 20px; text-align: center; }
+.info-sep { color: rgba(197,168,110,0.2); font-size: 20px; }
+.turn-text { font-size: 12px; color: rgba(197,168,110,0.5); letter-spacing: 0.05em; white-space: nowrap; }
+
+/* ── Board 3-D scene ── */
+.board-scene {
+  perspective: 900px; perspective-origin: 50% 10%;
+  width: 100%; display: flex; justify-content: center;
+}
+.board-wrapper {
+  transform: rotateX(16deg);
+  transform-style: preserve-3d;
+  filter: drop-shadow(0 28px 55px rgba(0,0,0,0.9));
+  position: relative; transition: transform 0.5s ease;
+}
+.view-btn {
+  position: absolute; top: -32px; right: 0;
+  font-family: inherit; font-size: 10px; letter-spacing: 0.1em;
+  color: rgba(197,168,110,0.45); background: none;
+  border: 1px solid rgba(197,168,110,0.18); border-radius: 3px;
+  padding: 3px 10px; cursor: pointer; transition: all 0.25s;
+}
+.view-btn:hover { color: var(--board-wood); border-color: rgba(197,168,110,0.45); }
+
+.board-frame {
+  padding: 20px;
+  background: linear-gradient(135deg,#c8a040 0%,#9b7a28 20%,#7a5c18 40%,#9b7a28 60%,#c8a040 80%,#e8c060 100%);
+  border-radius: 5px; position: relative; transform-style: preserve-3d;
+  box-shadow: 0 0 0 1px rgba(255,210,80,0.28),
+              inset 0 1px 1px rgba(255,255,255,0.28),
+              inset 0 -1px 1px rgba(0,0,0,0.5);
+}
+.board-frame::before {
+  content:''; position:absolute; inset:0; border-radius:5px; pointer-events:none;
+  background-image: repeating-linear-gradient(
+    88deg, transparent 0px,transparent 3px,
+    rgba(0,0,0,0.035) 3px,rgba(0,0,0,0.035) 4px,
+    transparent 4px,transparent 9px,
+    rgba(255,255,255,0.035) 9px,rgba(255,255,255,0.035) 10px);
+}
+.board-frame::after {
+  content:''; position:absolute; bottom:-11px; left:4px; right:4px; height:11px;
+  background: linear-gradient(180deg,#5a4010 0%,#3a2808 100%);
+  border-radius: 0 0 5px 5px;
+  clip-path: polygon(0 0,100% 0,97% 100%,3% 100%);
+}
+.board-surface {
+  position:relative;
+  background: radial-gradient(ellipse at 30% 25%,rgba(255,220,140,0.28) 0%,transparent 60%),
+              linear-gradient(160deg,#d4a84b 0%,#b8902a 25%,#c09830 50%,#a07820 75%,#c09830 100%);
+  border-radius:2px; overflow:hidden;
+  box-shadow: inset 0 0 36px rgba(0,0,0,0.28);
+}
+.board-surface::before {
+  content:''; position:absolute; inset:0; z-index:1; pointer-events:none;
+  background-image: repeating-linear-gradient(
+    92deg, transparent 0px,transparent 6px,
+    rgba(0,0,0,0.02) 6px,rgba(0,0,0,0.02) 7px,
+    transparent 7px,transparent 15px,
+    rgba(255,255,255,0.025) 15px,rgba(255,255,255,0.025) 16px);
+}
+canvas { display:block; position:relative; z-index:2; cursor:crosshair; }
+
+/* ── Controls ── */
+.controls { display:flex; gap:10px; align-items:center; }
+.btn {
+  font-family:inherit; font-size:12px; letter-spacing:0.14em;
+  color:rgba(197,168,110,0.75); background:rgba(8,7,4,0.6);
+  border:1px solid rgba(197,168,110,0.22); border-radius:3px;
+  padding:8px 20px; cursor:pointer; transition:all 0.22s;
+  backdrop-filter:blur(4px);
+}
+.btn:hover { background:rgba(197,168,110,0.1); color:var(--board-wood); border-color:rgba(197,168,110,0.5); }
+.btn.primary { color:var(--board-wood); border-color:rgba(197,168,110,0.45); background:rgba(197,168,110,0.07); }
+
+/* ── Win overlay ── */
+.overlay {
+  position:fixed; inset:0; z-index:200;
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(0,0,0,0.78); backdrop-filter:blur(7px);
+  opacity:0; pointer-events:none; transition:opacity 0.45s;
+}
+.overlay.show { opacity:1; pointer-events:all; }
+.win-card {
+  background:rgba(10,8,5,0.96); border:1px solid rgba(197,168,110,0.28);
+  border-radius:6px; padding:46px 56px; text-align:center;
+  box-shadow:0 36px 72px rgba(0,0,0,0.85);
+  transform:translateY(16px); transition:transform 0.45s;
+}
+.overlay.show .win-card { transform:translateY(0); }
+.win-eyebrow { font-size:10px; letter-spacing:0.5em; color:rgba(197,168,110,0.45); margin-bottom:14px; }
+.win-title { font-size:34px; font-weight:700; color:var(--board-wood); letter-spacing:0.2em; text-shadow:0 0 28px rgba(197,168,110,0.38); }
+.win-sub { font-size:12px; color:rgba(197,168,110,0.45); letter-spacing:0.1em; margin:8px 0 28px; }
+
+/* ── Quote ── */
+.zen-quote { font-size:11px; color:rgba(197,168,110,0.28); letter-spacing:0.07em; font-style:italic; line-height:1.7; text-align:center; }
+</style>
+</head>
+<body>
+
+<script>
+for(let i=0;i<10;i++){
+  const p=document.createElement('div'); p.className='ink-particle';
+  const s=Math.random()*4+1;
+  p.style.cssText=`width:${s}px;height:${s}px;left:${Math.random()*100}%;animation-duration:${Math.random()*18+14}s;animation-delay:${Math.random()*14}s;`;
+  document.body.appendChild(p);
+}
+</script>
+
+<div class="page">
+
+  <!-- Title -->
+  <div class="title-area">
+    <span class="title-sub">五子棋 · 禪境</span>
+    <div class="title-main">圍棋</div>
+    <div class="title-rule">· 靜 · 思 · 勝 ·</div>
+  </div>
+
+  <!-- Mode / Level panel -->
+  <div class="panel">
+    <div class="panel-row">
+      <span class="panel-label">對局模式</span>
+      <div class="mode-btns">
+        <button class="mbtn active" id="modePvP" onclick="setMode('pvp')">雙人對弈</button>
+        <button class="mbtn" id="modePvA" onclick="setMode('pva')">人機對弈</button>
+      </div>
+    </div>
+    <div class="panel-row" id="levelRow" style="display:none">
+      <span class="panel-label">棋力</span>
+      <div class="level-pips">
+        <div class="lpip active" data-lv="1" onclick="setLevel(1)">
+          <div class="lpip-dots"><div class="lpip-dot"></div></div>
+          <span class="lpip-name">入門</span>
+        </div>
+        <div class="lpip" data-lv="2" onclick="setLevel(2)">
+          <div class="lpip-dots"><div class="lpip-dot"></div><div class="lpip-dot"></div></div>
+          <span class="lpip-name">學徒</span>
+        </div>
+        <div class="lpip" data-lv="3" onclick="setLevel(3)">
+          <div class="lpip-dots"><div class="lpip-dot"></div><div class="lpip-dot"></div><div class="lpip-dot"></div></div>
+          <span class="lpip-name">棋士</span>
+        </div>
+        <div class="lpip" data-lv="4" onclick="setLevel(4)">
+          <div class="lpip-dots"><div class="lpip-dot"></div><div class="lpip-dot"></div><div class="lpip-dot"></div><div class="lpip-dot"></div></div>
+          <span class="lpip-name">高手</span>
+        </div>
+        <div class="lpip" data-lv="5" onclick="setLevel(5)">
+          <div class="lpip-dots"><div class="lpip-dot"></div><div class="lpip-dot"></div><div class="lpip-dot"></div><div class="lpip-dot"></div><div class="lpip-dot"></div></div>
+          <span class="lpip-name">宗師</span>
+        </div>
+      </div>
+    </div>
+    <div class="thinking-bar" id="thinkingBar" style="opacity:0">
+      <span>AI 沉思中</span>
+      <span class="tdots"><span>●</span><span>●</span><span>●</span></span>
+    </div>
+  </div>
+
+  <!-- Score / status row -->
+  <div class="info-row">
+    <div class="player-block">
+      <div class="stone-ico black glow" id="icoBlack"></div>
+      <span class="player-name" id="nameBlack">黑棋</span>
+      <span class="player-score" id="scoreBlack">0</span>
+    </div>
+    <span class="info-sep">—</span>
+    <span class="turn-text" id="turnText">黑棋先行</span>
+    <span class="info-sep">—</span>
+    <div class="player-block">
+      <span class="player-score" id="scoreWhite">0</span>
+      <span class="player-name" id="nameWhite">白棋</span>
+      <div class="stone-ico white" id="icoWhite"></div>
+    </div>
+  </div>
+
+  <!-- Board -->
+  <div class="board-scene">
+    <div class="board-wrapper" id="boardWrapper">
+      <button class="view-btn" id="viewBtn" onclick="toggle3D()">切換視角</button>
+      <div class="board-frame">
+        <div class="board-surface">
+          <canvas id="cv"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <button class="btn primary" onclick="resetGame()">重新開局</button>
+    <button class="btn" onclick="undoMove()">悔棋</button>
+  </div>
+
+  <div class="zen-quote">
+    「棋者，以正合，以奇勝。」<br>靜心落子，方能致遠。
+  </div>
+</div>
+
+<!-- Win overlay -->
+<div class="overlay" id="winOverlay">
+  <div class="win-card">
+    <div class="win-eyebrow">對局結束</div>
+    <div class="win-title" id="winTitle">黑棋勝</div>
+    <div class="win-sub" id="winSub">五子連珠，一擊制勝</div>
+    <button class="btn primary" onclick="resetGame()">再戰一局</button>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════
+   CONSTANTS
+═══════════════════════════════════ */
+const GRID = 15;
+const CELL = 38;
+const PAD  = 30;
+const SZ   = PAD * 2 + CELL * (GRID - 1);
+
+const STARS = [
+  [3,3],[3,7],[3,11],[7,3],[7,7],[7,11],[11,3],[11,7],[11,11]
+];
+
+const DIRS4 = [[0,1],[1,0],[1,1],[1,-1]];
+
+const SC = {
+  FIVE:100000, OPEN4:10000, BLOCK4:1000,
+  OPEN3:1000,  BLOCK3:100,  OPEN2:100, BLOCK2:10, ONE:1
+};
+
+/* ═══════════════════════════════════
+   STATE
+═══════════════════════════════════ */
+let board, history, currentPlayer, gameOver, winCells;
+let scores = {1:0, 2:0};
+
+let gameMode   = 'pvp';
+let aiLevel    = 1;
+const AI_COLOR = 2;   // AI always plays white
+let aiThinking = false;
+let is3D       = true;
+
+/* ═══════════════════════════════════
+   CANVAS SETUP
+═══════════════════════════════════ */
+const cv  = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+cv.width  = SZ;
+cv.height = SZ;
+
+/* ═══════════════════════════════════
+   GAME INIT
+═══════════════════════════════════ */
+function initGame() {
+  board         = Array.from({length:GRID}, () => Array(GRID).fill(0));
+  history       = [];
+  currentPlayer = 1;
+  gameOver      = false;
+  winCells      = [];
+  updateUI();
+  render();
+}
+
+/* ═══════════════════════════════════
+   RENDERING
+═══════════════════════════════════ */
+let hoverRC = null;
+
+function render() {
+  ctx.clearRect(0, 0, SZ, SZ);
+
+  /* board glow */
+  const glow = ctx.createRadialGradient(SZ/2,SZ/2,0, SZ/2,SZ/2,SZ/1.4);
+  glow.addColorStop(0,'rgba(255,220,100,0.07)');
+  glow.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle = glow; ctx.fillRect(0,0,SZ,SZ);
+
+  /* grid lines */
+  ctx.strokeStyle = 'rgba(90,60,10,0.72)'; ctx.lineWidth = 0.9;
+  for (let i=0; i<GRID; i++) {
+    const x = PAD + i*CELL, y = PAD + i*CELL;
+    ctx.beginPath(); ctx.moveTo(x,PAD); ctx.lineTo(x,PAD+(GRID-1)*CELL); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(PAD,y); ctx.lineTo(PAD+(GRID-1)*CELL,y); ctx.stroke();
+  }
+  /* border */
+  ctx.strokeStyle = 'rgba(90,60,10,0.9)'; ctx.lineWidth = 1.8;
+  ctx.strokeRect(PAD,PAD,(GRID-1)*CELL,(GRID-1)*CELL);
+
+  /* star points */
+  STARS.forEach(([r,c]) => {
+    const {x,y}=rc2px(r,c);
+    ctx.beginPath(); ctx.arc(x,y,3.5,0,Math.PI*2);
+    ctx.fillStyle='rgba(90,60,10,0.82)'; ctx.fill();
+  });
+
+  /* stones */
+  for (let r=0;r<GRID;r++) for (let c=0;c<GRID;c++)
+    if (board[r][c]) drawStone(r,c,board[r][c],false);
+
+  /* hover ghost */
+  if (hoverRC && !gameOver && !aiThinking) {
+    const [hr,hc] = hoverRC;
+    if (!board[hr][hc]) drawStone(hr,hc,currentPlayer,true);
+  }
+
+  /* win highlight */
+  if (winCells.length) {
+    winCells.forEach(([r,c]) => {
+      const {x,y}=rc2px(r,c);
+      ctx.beginPath(); ctx.arc(x,y,CELL*0.4,0,Math.PI*2);
+      ctx.strokeStyle='rgba(255,180,0,0.88)'; ctx.lineWidth=2.5; ctx.stroke();
+    });
+  }
+}
+
+function rc2px(r,c) { return { x: PAD+c*CELL, y: PAD+r*CELL }; }
+
+function drawStone(r, c, player, ghost) {
+  const {x,y} = rc2px(r,c);
+  const rad    = CELL * 0.43;
+  const black  = player === 1;
+  const alpha  = ghost ? 0.42 : 1;
+
+  /* shadow */
+  const shadowOff = is3D ? 4 : 2;
+  ctx.save(); ctx.globalAlpha = alpha * 0.65;
+  ctx.beginPath(); ctx.arc(x+shadowOff,y+shadowOff,rad,0,Math.PI*2);
+  const sh = ctx.createRadialGradient(x+shadowOff,y+shadowOff,0, x+shadowOff,y+shadowOff,rad);
+  sh.addColorStop(0,'rgba(0,0,0,0.6)'); sh.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=sh; ctx.fill(); ctx.restore();
+
+  /* body */
+  ctx.save(); ctx.globalAlpha = alpha;
+  ctx.beginPath(); ctx.arc(x,y,rad,0,Math.PI*2);
+  if (black) {
+    const g=ctx.createRadialGradient(x-rad*.3,y-rad*.3,rad*.04, x,y,rad);
+    g.addColorStop(0,'#6a5a40'); g.addColorStop(.3,'#2a1e10');
+    g.addColorStop(.7,'#0d0a06'); g.addColorStop(1,'#060402');
+    ctx.fillStyle=g;
+  } else {
+    const g=ctx.createRadialGradient(x-rad*.3,y-rad*.3,rad*.04, x,y,rad);
+    g.addColorStop(0,'#ffffff'); g.addColorStop(.3,'#f0ece0');
+    g.addColorStop(.7,'#d8d0b8'); g.addColorStop(1,'#b8a880');
+    ctx.fillStyle=g;
+  }
+  ctx.fill();
+
+  /* 3-D specular */
+  if (is3D && !ghost) {
+    ctx.beginPath();
+    ctx.ellipse(x-rad*.28,y-rad*.28, rad*.22,rad*.13, -Math.PI/4, 0,Math.PI*2);
+    ctx.fillStyle = black?'rgba(255,255,255,0.17)':'rgba(255,255,255,0.72)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(x-rad*.14,y-rad*.14, rad*.07,0,Math.PI*2);
+    ctx.fillStyle = black?'rgba(255,255,255,0.09)':'rgba(255,255,255,0.88)'; ctx.fill();
+  }
+
+  /* edge ring */
+  ctx.beginPath(); ctx.arc(x,y,rad,0,Math.PI*2);
+  ctx.strokeStyle = black?'rgba(0,0,0,0.55)':'rgba(160,140,100,0.45)';
+  ctx.lineWidth=0.5; ctx.stroke();
+  ctx.restore();
+}
+
+/* ═══════════════════════════════════
+   INPUT
+═══════════════════════════════════ */
+function pointerRC(e) {
+  const rect  = cv.getBoundingClientRect();
+  const scaleX = cv.width/rect.width, scaleY = cv.height/rect.height;
+  let cx, cy;
+  if (e.touches) { cx=e.touches[0].clientX; cy=e.touches[0].clientY; }
+  else           { cx=e.clientX;            cy=e.clientY; }
+  const mx=(cx-rect.left)*scaleX, my=(cy-rect.top)*scaleY;
+  return [ Math.round((my-PAD)/CELL), Math.round((mx-PAD)/CELL) ];
+}
+
+cv.addEventListener('mousemove', e => {
+  const [r,c]=pointerRC(e);
+  hoverRC = (r>=0&&r<GRID&&c>=0&&c<GRID) ? [r,c] : null;
+  cv.style.cursor = (hoverRC&&!board[r]?.[c]) ? 'pointer':'crosshair';
+  render();
+});
+cv.addEventListener('mouseleave', () => { hoverRC=null; render(); });
+
+cv.addEventListener('click', e => { placeStone(...pointerRC(e)); });
+cv.addEventListener('touchend', e => {
+  e.preventDefault();
+  const [r,c]=pointerRC(e);
+  placeStone(r,c);
+}, {passive:false});
+
+function placeStone(r, c) {
+  if (gameOver || aiThinking) return;
+  if (gameMode==='pva' && currentPlayer===AI_COLOR) return;
+  if (r<0||r>=GRID||c<0||c>=GRID) return;
+  if (board[r][c]) return;
+
+  doPlace(r, c, currentPlayer);
+  if (!gameOver) {
+    currentPlayer = currentPlayer===1?2:1;
+    updateUI();
+    if (gameMode==='pva') scheduleAI();
+  }
+}
+
+function doPlace(r, c, player) {
+  board[r][c] = player;
+  history.push([r,c,player]);
+  const won = detectWin(r,c,player);
+  render();
+  if (won) {
+    gameOver = true;
+    scores[player]++;
+    updateScores();
+    setTimeout(()=>showWin(player), 380);
+  }
+}
+
+/* ═══════════════════════════════════
+   WIN DETECTION
+═══════════════════════════════════ */
+function countDir(r,c,dr,dc,player) {
+  /* count consecutive stones + open ends in one axis */
+  let cnt=1, open=0;
+  for(let d=1;d<=4;d++){
+    const nr=r+dr*d,nc=c+dc*d;
+    if(nr<0||nr>=GRID||nc<0||nc>=GRID) break;
+    if(board[nr][nc]===player) cnt++;
+    else { if(board[nr][nc]===0) open++; break; }
+  }
+  for(let d=1;d<=4;d++){
+    const nr=r-dr*d,nc=c-dc*d;
+    if(nr<0||nr>=GRID||nc<0||nc>=GRID) break;
+    if(board[nr][nc]===player) cnt++;
+    else { if(board[nr][nc]===0) open++; break; }
+  }
+  return {cnt,open};
+}
+
+function detectWin(r,c,player) {
+  for(const[dr,dc] of DIRS4){
+    const {cnt}=countDir(r,c,dr,dc,player);
+    if(cnt>=5){
+      /* collect winning cells */
+      const cells=[[r,c]];
+      for(let d=1;d<=4;d++){const nr=r+dr*d,nc=c+dc*d;if(nr<0||nr>=GRID||nc<0||nc>=GRID||board[nr][nc]!==player)break;cells.push([nr,nc]);}
+      for(let d=1;d<=4;d++){const nr=r-dr*d,nc=c-dc*d;if(nr<0||nr>=GRID||nc<0||nc>=GRID||board[nr][nc]!==player)break;cells.push([nr,nc]);}
+      winCells=cells; return true;
+    }
+  }
+  return false;
+}
+
+function checkWinSilent(r,c,player) {
+  for(const[dr,dc] of DIRS4){ if(countDir(r,c,dr,dc,player).cnt>=5) return true; }
+  return false;
+}
+
+/* ═══════════════════════════════════
+   AI ENGINE
+═══════════════════════════════════ */
+function scoreCell(r,c,player) {
+  /* score placing player at empty (r,c) */
+  if(board[r][c]!==0) return -Infinity;
+  let total=0;
+  board[r][c]=player;
+  for(const[dr,dc] of DIRS4){
+    const{cnt,open}=countDir(r,c,dr,dc,player);
+    if(cnt>=5)      total+=SC.FIVE;
+    else if(cnt===4) total+=open===2?SC.OPEN4:SC.BLOCK4;
+    else if(cnt===3) total+=open===2?SC.OPEN3:SC.BLOCK3;
+    else if(cnt===2) total+=open===2?SC.OPEN2:SC.BLOCK2;
+    else             total+=SC.ONE;
+  }
+  board[r][c]=0;
+  return total;
+}
+
+function scoreLine(r,c,player) {
+  /* score occupied cell for board evaluation */
+  let total=0;
+  for(const[dr,dc] of DIRS4){
+    const{cnt,open}=countDir(r,c,dr,dc,player);
+    if(cnt>=5)      total+=SC.FIVE;
+    else if(cnt===4) total+=open===2?SC.OPEN4:SC.BLOCK4;
+    else if(cnt===3) total+=open===2?SC.OPEN3:SC.BLOCK3;
+    else if(cnt===2) total+=open===2?SC.OPEN2:SC.BLOCK2;
+    else             total+=SC.ONE;
+  }
+  return total;
+}
+
+function getCandidates(range) {
+  const set=new Set();
+  for(let r=0;r<GRID;r++) for(let c=0;c<GRID;c++){
+    if(!board[r][c]) continue;
+    for(let dr=-range;dr<=range;dr++) for(let dc=-range;dc<=range;dc++){
+      const nr=r+dr,nc=c+dc;
+      if(nr>=0&&nr<GRID&&nc>=0&&nc<GRID&&!board[nr][nc]) set.add(nr*GRID+nc);
+    }
+  }
+  if(!set.size) set.add(7*GRID+7);
+  return [...set].map(k=>[Math.floor(k/GRID),k%GRID]);
+}
+
+function evaluate(aiP) {
+  const opp=aiP===1?2:1;
+  let score=0;
+  for(let r=0;r<GRID;r++) for(let c=0;c<GRID;c++){
+    if(board[r][c]===aiP)  score+=scoreLine(r,c,aiP);
+    else if(board[r][c]===opp) score-=scoreLine(r,c,opp)*1.1;
+  }
+  return score;
+}
+
+function isWin(r,c,p){ board[r][c]=p; const w=checkWinSilent(r,c,p); board[r][c]=0; return w; }
+
+function minimax(depth, alpha, beta, maxing, aiP) {
+  const opp=aiP===1?2:1;
+  if(depth===0) return evaluate(aiP);
+  const cur=maxing?aiP:opp;
+  const cands=getCandidates(2);
+  cands.sort((a,b)=>scoreCell(b[0],b[1],cur)-scoreCell(a[0],a[1],cur));
+  const top=cands.slice(0, depth>1?10:15);
+
+  if(maxing){
+    let best=-Infinity;
+    for(const[r,c] of top){
+      board[r][c]=aiP;
+      if(checkWinSilent(r,c,aiP)){board[r][c]=0;return SC.FIVE*10;}
+      const v=minimax(depth-1,alpha,beta,false,aiP);
+      board[r][c]=0;
+      best=Math.max(best,v); alpha=Math.max(alpha,best);
+      if(beta<=alpha) break;
+    }
+    return best;
+  } else {
+    let best=Infinity;
+    for(const[r,c] of top){
+      board[r][c]=opp;
+      if(checkWinSilent(r,c,opp)){board[r][c]=0;return -SC.FIVE*10;}
+      const v=minimax(depth-1,alpha,beta,true,aiP);
+      board[r][c]=0;
+      best=Math.min(best,v); beta=Math.min(beta,best);
+      if(beta<=alpha) break;
+    }
+    return best;
+  }
+}
+
+function getAIMove() {
+  const opp = AI_COLOR===1?2:1;
+  const cands = getCandidates(2);
+
+  /* Lv1 — random + grab own win */
+  if(aiLevel===1){
+    const sh=[...cands].sort(()=>Math.random()-.5);
+    for(const[r,c] of sh) if(isWin(r,c,AI_COLOR)) return[r,c];
+    return sh[0]||[7,7];
+  }
+
+  /* All levels Lv2+: immediate win first, then block */
+  for(const[r,c] of cands) if(isWin(r,c,AI_COLOR)) return[r,c];
+  for(const[r,c] of cands) if(isWin(r,c,opp))      return[r,c];
+
+  /* Lv2 — greedy with noise */
+  if(aiLevel===2){
+    let best=-Infinity, mv=null;
+    for(const[r,c] of cands){
+      const s=scoreCell(r,c,AI_COLOR)+Math.random()*40;
+      if(s>best){best=s;mv=[r,c];}
+    }
+    return mv||cands[0];
+  }
+
+  /* Lv3–5 — minimax */
+  const depths={3:2,4:3,5:4};
+  const depth=depths[aiLevel];
+  const sorted=cands.sort((a,b)=>{
+    const sb=scoreCell(b[0],b[1],AI_COLOR)+scoreCell(b[0],b[1],opp)*.9;
+    const sa=scoreCell(a[0],a[1],AI_COLOR)+scoreCell(a[0],a[1],opp)*.9;
+    return sb-sa;
+  }).slice(0, aiLevel===3?15:aiLevel===4?12:10);
+
+  let best=-Infinity, mv=null;
+  for(const[r,c] of sorted){
+    board[r][c]=AI_COLOR;
+    const v=minimax(depth,-Infinity,Infinity,false,AI_COLOR);
+    board[r][c]=0;
+    if(v>best){best=v;mv=[r,c];}
+  }
+  return mv||sorted[0];
+}
+
+function scheduleAI() {
+  if(gameOver||aiThinking||currentPlayer!==AI_COLOR) return;
+  aiThinking=true; showThinking(true);
+  const delay=[0,300,350,500,700,950][aiLevel]||400;
+  setTimeout(()=>{
+    if(!gameOver){
+      const mv=getAIMove();
+      if(mv){ doPlace(mv[0],mv[1],AI_COLOR); if(!gameOver){currentPlayer=1;updateUI();} }
+    }
+    aiThinking=false; showThinking(false);
+  }, delay);
+}
+
+/* ═══════════════════════════════════
+   UI HELPERS
+═══════════════════════════════════ */
+function updateUI() {
+  const iB=document.getElementById('icoBlack');
+  const iW=document.getElementById('icoWhite');
+  const tt=document.getElementById('turnText');
+  const isAI=(gameMode==='pva'&&currentPlayer===AI_COLOR);
+
+  if(currentPlayer===1){
+    iB.classList.add('glow'); iW.classList.remove('glow');
+    tt.textContent = isAI?'AI 落子（黑）':'黑棋落子';
+  } else {
+    iW.classList.add('glow'); iB.classList.remove('glow');
+    tt.textContent = isAI?'AI 沉思（白）':'白棋落子';
+  }
+}
+
+function updateScores() {
+  document.getElementById('scoreBlack').textContent=scores[1];
+  document.getElementById('scoreWhite').textContent=scores[2];
+}
+
+function showThinking(v) {
+  document.getElementById('thinkingBar').style.opacity=v?'1':'0';
+}
+
+function showWin(player) {
+  const isAI=(gameMode==='pva'&&player===AI_COLOR);
+  const labels={1:'黑棋勝',2:'白棋勝'};
+  document.getElementById('winTitle').textContent =
+    isAI ? 'AI 獲勝' : (player===1?'黑棋勝':'白棋勝');
+  const subs=['五子連珠，一擊制勝','勝在謀略，非在棋','落子如山，不可動搖','靜水流深，以柔克剛'];
+  document.getElementById('winSub').textContent=subs[Math.floor(Math.random()*subs.length)];
+  document.getElementById('winOverlay').classList.add('show');
+}
+
+/* ═══════════════════════════════════
+   CONTROLS
+═══════════════════════════════════ */
+function resetGame() {
+  document.getElementById('winOverlay').classList.remove('show');
+  aiThinking=false; showThinking(false);
+  initGame();
+}
+
+function undoMove() {
+  if(gameOver||aiThinking||!history.length) return;
+  const steps = gameMode==='pva' ? 2 : 1;
+  for(let i=0;i<steps&&history.length;i++){
+    const[r,c]=history.pop(); board[r][c]=0;
+  }
+  currentPlayer = history.length ? (history[history.length-1][2]===1?2:1) : 1;
+  winCells=[]; gameOver=false;
+  updateUI(); render();
+}
+
+function setMode(m) {
+  gameMode=m;
+  document.getElementById('modePvP').classList.toggle('active',m==='pvp');
+  document.getElementById('modePvA').classList.toggle('active',m==='pva');
+  document.getElementById('levelRow').style.display=m==='pva'?'flex':'none';
+  resetGame();
+}
+
+function setLevel(lv) {
+  aiLevel=lv;
+  document.querySelectorAll('.lpip').forEach(el=>
+    el.classList.toggle('active',+el.dataset.lv===lv));
+  resetGame();
+}
+
+function toggle3D() {
+  is3D=!is3D;
+  document.getElementById('boardWrapper').style.transform=is3D?'rotateX(16deg)':'rotateX(0deg)';
+  document.getElementById('viewBtn').textContent=is3D?'切換視角':'立體視角';
+  render();
+}
+
+/* ── Boot ── */
+initGame();
+</script>
+</body>
+</html>
